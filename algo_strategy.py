@@ -27,13 +27,13 @@ class AlgoStrategy(gamelib.AlgoCore):
         super().__init__()
         seed = random.randrange(maxsize)
         random.seed(seed)
-        gamelib.debug_write('Random seed: {}'.format(seed))
+        gamelib.debug_write("Random seed: {}".format(seed))
 
     def on_game_start(self, config):
-        """ 
-        Read in config and perform any initial setup here 
         """
-        gamelib.debug_write('Configuring your custom algo strategy...')
+        Read in config and perform any initial setup here
+        """
+        gamelib.debug_write("Configuring your custom algo strategy...")
         self.config = config
         global WALL, SUPPORT, TURRET, SCOUT, DEMOLISHER, INTERCEPTOR, MP, SP
         WALL = config["unitInformation"][0]["shorthand"]
@@ -56,8 +56,11 @@ class AlgoStrategy(gamelib.AlgoCore):
         game engine.
         """
         game_state = gamelib.GameState(self.config, turn_state)
-        gamelib.debug_write('Performing turn {} of your custom algo strategy'.format(
-            game_state.turn_number))
+        gamelib.debug_write(
+            "Performing turn {} of your custom algo strategy".format(
+                game_state.turn_number
+            )
+        )
         # Comment or remove this line to enable warnings.
         game_state.suppress_warnings(True)
 
@@ -66,35 +69,95 @@ class AlgoStrategy(gamelib.AlgoCore):
         game_state.submit_turn()
 
     def hello_world(self, game_state: GameState):
-        turret_pos = [
-            (3, 12),
-            (24, 12),
-            (10, 10),
-            (17, 10)
+        turret_pos = [(3, 12), (24, 12), (10, 10), (17, 10)]
+        wall_pos_1 = [
+            [0, 13],
+            [1, 13],
+            [2, 13],
+            [3, 13],
+            [4, 13],
+            [5, 13],
+            [22, 13],
+            [23, 13],
+            [24, 13],
+            [25, 13],
+            [26, 13],
+            [27, 13],
         ]
-        wall_pos_1 = [[0, 13], [1, 13], [2, 13], [3, 13], [4, 13], [5, 13], [
-            22, 13], [23, 13], [24, 13], [25, 13], [26, 13], [27, 13]]
 
-        wall_pos_2 = [[8, 11], [9, 11], [10, 11], [11, 11], [
-            12, 11], [15, 11], [16, 11], [17, 11], [18, 11], [19, 11]]
+        wall_pos_2 = [
+            [8, 11],
+            [9, 11],
+            [10, 11],
+            [11, 11],
+            [12, 11],
+            [15, 11],
+            [16, 11],
+            [17, 11],
+            [18, 11],
+            [19, 11],
+        ]
 
+        # Redeploy stage
         for pos in turret_pos:
             if game_state.can_spawn(TURRET, pos):
+                gamelib.debug_write('deploying turret at {}'.format(pos))
                 game_state.attempt_spawn(TURRET, pos)
-            else:
-                game_state.attempt_upgrade(pos)
-
         for pos in wall_pos_1:
             if game_state.can_spawn(WALL, pos):
                 game_state.attempt_spawn(WALL, pos)
-            else:
-                game_state.attempt_upgrade(pos)
-
         for pos in wall_pos_2:
             if game_state.can_spawn(WALL, pos):
                 game_state.attempt_spawn(WALL, pos)
-            else:
-                game_state.attempt_upgrade(pos)
+        
+        # Repair stage
+        for pos in turret_pos:
+            game_state.attempt_upgrade(pos)
+        for pos in wall_pos_1:
+            game_state.attempt_upgrade(pos)
+        for pos in wall_pos_2:
+            game_state.attempt_upgrade(pos)
+
+
+        left_edges = [
+            [0, 13],
+            [1, 12],
+            [2, 11],
+            [3, 10],
+            [4, 9],
+            [5, 8],
+            [6, 7],
+            [7, 6],
+            [8, 5],
+            [9, 4],
+            [10, 3],
+            [11, 2],
+            [12, 1],
+            [13, 0],
+        ]
+
+        right_edges = [
+            [27, 13],
+            [26, 12],
+            [25, 11],
+            [24, 10],
+            [23, 9],
+            [22, 8],
+            [21, 7],
+            [20, 6],
+            [19, 5],
+            [18, 4],
+            [17, 3],
+            [16, 2],
+            [15, 1],
+            [14, 0],
+        ]
+
+        left = left_edges[11]
+        right = right_edges[11]
+        if game_state.get_resource(1) > 10:
+            if game_state.can_spawn(SCOUT, left):
+                game_state.attempt_spawn(SCOUT, left, num=int(game_state.get_resource(1)))
 
 
 if __name__ == "__main__":
