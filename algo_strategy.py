@@ -72,32 +72,39 @@ class AlgoStrategy(gamelib.AlgoCore):
         game_state.submit_turn()
 
     def hello_world(self, game_state: GameState):
-        essential_turrets = [(3, 12), (24, 12), (9, 10), (18, 10), (13, 7)]
-        essential_walls = [
-            [0, 13],
-            [1, 13],
-            [2, 13],
-            [3, 13],
-            [4, 13],
-            [23, 13],
-            [24, 13],
-            [25, 13],
-            [26, 13],
-            [27, 13],
-            [8, 11],
-            [9, 11],
-            [10, 11],
-            [17, 11],
-            [18, 11],
-            [19, 11]
+        structures = [
+            (TURRET, [3, 12]), 
+            (TURRET, [24, 12]), 
+            (TURRET, [9, 10]), 
+            (TURRET, [18, 10]), 
+            (TURRET, [13, 7]),
+            (WALL, [1, 13]),
+            (WALL, [2, 13]),
+            (WALL, [3, 13]), 
+            (WALL, [4, 13]),
+            (WALL, [23, 13]),
+            (WALL, [24, 13]),
+            (WALL, [25, 13]),
+            (WALL, [26, 13]),
+            (WALL, [27, 13]),
+            (WALL, [8, 11]),
+            (WALL, [9, 11]),
+            (WALL, [10, 11]),
+            (WALL, [17, 11]),
+            (WALL, [18, 11]),
+            (WALL, [19, 11]),
+            (WALL, [0, 13])
         ]
+        structures = [(i, k) for i, k in enumerate(structures)]
 
         # initialize priority queue
         essential_structures = PriorityQueue()
-        for i, loc in enumerate(essential_turrets):
-            essential_structures.put((i, (TURRET, loc)))
-        for i, loc in enumerate(essential_walls):
-            essential_structures.put((i + len(essential_turrets), (WALL, loc)))
+        # for i, loc in enumerate(essential_turrets):
+        #     essential_structures.put((i, (TURRET, loc)))
+        # for i, loc in enumerate(essential_walls):
+        #     essential_structures.put((i + len(essential_turrets), (WALL, loc)))
+        for structure in structures:
+            essential_structures.put(structure)
 
         # respawn if structure was destroyed
         while not essential_structures.empty():
@@ -108,7 +115,7 @@ class AlgoStrategy(gamelib.AlgoCore):
                 # add to upgrade queue
                 if self.GAME_ROUND > 1:
                     self.upgrade_priority.put((structure_obj[0], structure[1]))
-        # upgrade only previously destroyed structures
+        # upgrade 
         while (game_state.get_resource(0) > 0) and (not self.upgrade_priority.empty()):
             structure = self.upgrade_priority.get()[1]
             game_state.attempt_upgrade(structure)
