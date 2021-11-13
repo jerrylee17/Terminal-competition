@@ -4,6 +4,7 @@ import math
 import warnings
 from sys import maxsize
 import json
+from queue import PriorityQueue
 
 from gamelib.game_state import GameState
 
@@ -44,8 +45,10 @@ class AlgoStrategy(gamelib.AlgoCore):
         INTERCEPTOR = config["unitInformation"][5]["shorthand"]
         MP = 1
         SP = 0
+        self.GAME_ROUND = 1
+        self.upgrade_priority = PriorityQueue()
+        
         # This is a good place to do initial setup
-        self.scored_on_locations = []
 
     def on_turn(self, turn_state):
         """
@@ -69,54 +72,102 @@ class AlgoStrategy(gamelib.AlgoCore):
         game_state.submit_turn()
 
     def hello_world(self, game_state: GameState):
-        turret_pos = [(3, 12), (24, 12), (10, 10), (17, 10)]
-        wall_pos_1 = [
+        essential_turrets = [(3, 12), (24, 12), (9, 10), (18, 10), (13, 7)]
+        essential_walls = [
             [0, 13],
             [1, 13],
             [2, 13],
             [3, 13],
             [4, 13],
-            [5, 13],
-            [22, 13],
             [23, 13],
             [24, 13],
             [25, 13],
             [26, 13],
             [27, 13],
-        ]
-
-        wall_pos_2 = [
             [8, 11],
             [9, 11],
             [10, 11],
-            [11, 11],
-            [12, 11],
-            [15, 11],
-            [16, 11],
             [17, 11],
             [18, 11],
-            [19, 11],
+            [19, 11]
         ]
 
+        # initialize priority queue
+        essential_structures = PriorityQueue()
+        for i, loc in enumerate(essential_turrets):
+            essential_structures.put((i, (TURRET, loc)))
+        for i, loc in enumerate(essential_walls):
+            essential_structures.put((i + len(essential_turrets), (WALL, loc)))
+
+        # respawn if structure was destroyed
+        while not essential_structures.empty():
+            structure_obj = essential_structures.get()
+            structure = structure_obj[1]
+            if game_state.can_spawn(structure[0], structure[1]):
+                game_state.attempt_spawn(structure[0], structure[1])
+                # add to upgrade queue
+                if self.GAME_ROUND > 1:
+                    self.upgrade_priority.put((structure_obj[0], structure[1]))
+        # upgrade only previously destroyed structures
+        while (game_state.get_resource(0) > 0) and (not self.upgrade_priority.empty()):
+            structure = self.upgrade_priority.get()[1]
+            game_state.attempt_upgrade(structure)
+
+        self.GAME_ROUND += 1
+        
+        # turret_pos = [(3, 12), (24, 12), (9, 10), (18, 10), (13, 7)]
+
+        # wall_pos_1 = [
+        #     [0, 13],
+        #     [1, 13],
+        #     [2, 13],
+        #     [3, 13],
+        #     [4, 13],
+        #     [23, 13],
+        #     [24, 13],
+        #     [25, 13],
+        #     [26, 13],
+        #     [27, 13],
+        #     [8, 11],
+        #     [9, 11],
+        #     [10, 11],
+        #     [17, 11],
+        #     [18, 11],
+        #     [19, 11]
+        #     ]
+
+        # wall_pos_2 = [
+        #     [8, 11],
+        #     [9, 11],
+        #     [10, 11],
+        #     [11, 11],
+        #     [12, 11],
+        #     [15, 11],
+        #     [16, 11],
+        #     [17, 11],
+        #     [18, 11],
+        #     [19, 11],
+        # ]
+
         # Redeploy stage
-        for pos in turret_pos:
-            if game_state.can_spawn(TURRET, pos):
-                gamelib.debug_write('deploying turret at {}'.format(pos))
-                game_state.attempt_spawn(TURRET, pos)
-        for pos in wall_pos_1:
-            if game_state.can_spawn(WALL, pos):
-                game_state.attempt_spawn(WALL, pos)
-        for pos in wall_pos_2:
-            if game_state.can_spawn(WALL, pos):
-                game_state.attempt_spawn(WALL, pos)
+        # for pos in turret_pos:
+        #     if game_state.can_spawn(TURRET, pos):
+        #         # gamelib.debug_write("deploying turret at {}".format(pos))
+        #         game_state.attempt_spawn(TURRET, pos)
+        # for pos in wall_pos_1:
+        #     if game_state.can_spawn(WALL, pos):
+        #         game_state.attempt_spawn(WALL, pos)
+        # for pos in wall_pos_2:
+        #     if game_state.can_spawn(WALL, pos):
+        #         game_state.attempt_spawn(WALL, pos)
         
         # Repair stage
-        for pos in turret_pos:
-            game_state.attempt_upgrade(pos)
-        for pos in wall_pos_1:
-            game_state.attempt_upgrade(pos)
-        for pos in wall_pos_2:
-            game_state.attempt_upgrade(pos)
+        # for pos in turret_pos:
+        #     game_state.attempt_upgrade(pos)
+        # for pos in wall_pos_1:
+        #     game_state.attempt_upgrade(pos)
+        # for pos in wall_pos_2:
+        #     game_state.attempt_upgrade(pos)
 
 
         left_edges = [
