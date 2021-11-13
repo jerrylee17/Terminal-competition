@@ -120,49 +120,9 @@ class AlgoStrategy(gamelib.AlgoCore):
             game_state.attempt_upgrade(pos)
 
         # Attack stage
-        left_edges = [
-            [0, 13],
-            [1, 12],
-            [2, 11],
-            [3, 10],
-            [4, 9],
-            [5, 8],
-            [6, 7],
-            [7, 6],
-            [8, 5],
-            [9, 4],
-            [10, 3],
-            [11, 2],
-            [12, 1],
-            [13, 0],
-        ]
+        self.attack_edge(game_state)
 
-        right_edges = [
-            [27, 13],
-            [26, 12],
-            [25, 11],
-            [24, 10],
-            [23, 9],
-            [22, 8],
-            [21, 7],
-            [20, 6],
-            [19, 5],
-            [18, 4],
-            [17, 3],
-            [16, 2],
-            [15, 1],
-            [14, 0],
-        ]
-
-        left = left_edges[11]
-        right = right_edges[11]
-        if game_state.get_resource(1) > 10:
-            if game_state.can_spawn(SCOUT, left):
-                game_state.attempt_spawn(
-                    SCOUT, left, num=int(game_state.get_resource(1))
-                )
-
-    def calc_resistance(self, game_state: GameState):
+    def calc_left_resistance(self, game_state: GameState):
         left_edges = [
             [0, 13],
             [1, 12],
@@ -201,44 +161,114 @@ class AlgoStrategy(gamelib.AlgoCore):
         edge_resistance = {}
         pathfinder = ShortestPathFinder()
         for pos in left_edges:
-            edge_resistance[pos] = 0
+            # Typecast to tuple to become tuple
+            pos = tuple(pos)
             path_edges = pathfinder.navigate_multiple_endpoints(
-                pos, left_destinations, game_state)
+                pos, left_destinations, game_state
+            )
+            if path_edges is None:
+                continue
             for path in path_edges:
                 # Still on my territory
-                if path < 14:
+                if path[1] < 11:
                     continue
-                # Calculate value
-                edge_resistance[pos] += len(game_state.get_attackers(path, 0))
+                # Add number of attackers
+                edge_resistance[pos] = edge_resistance.get(pos, 0) + len(
+                    game_state.get_attackers(path, 0)
+                )
+        return edge_resistance
+
+    def calc_right_resistance(self, game_state: GameState):
+        right_edges = [
+            [27, 13],
+            [26, 12],
+            [25, 11],
+            [24, 10],
+            [23, 9],
+            [22, 8],
+            [21, 7],
+            [20, 6],
+            [19, 5],
+            [18, 4],
+            [17, 3],
+            [16, 2],
+            [15, 1],
+            [14, 0],
+        ]
+        right_destinations = [
+            [13, 27],
+            [12, 26],
+            [11, 25],
+            [10, 24],
+            [9, 23],
+            [8, 22],
+            [7, 21],
+            [6, 20],
+            [5, 19],
+            [4, 18],
+            [3, 17],
+            [2, 16],
+            [1, 15],
+            [0, 14],
+        ]
+
+        edge_resistance = {}
+        pathfinder = ShortestPathFinder()
+        for pos in right_edges:
+            # Typecast to tuple to become tuple
+            pos = tuple(pos)
+            path_edges = pathfinder.navigate_multiple_endpoints(
+                pos, right_destinations, game_state
+            )
+            if path_edges is None:
+                continue
+            for path in path_edges:
+                # Still on my territory
+                if path[1] < 11:
+                    continue
+                # Add number of attackers and register edge
+                edge_resistance[pos] = edge_resistance.get(pos, 0) + len(
+                    game_state.get_attackers(path, 0)
+                )
+        return edge_resistance
 
     def attack_edge(self, game_state: GameState):
-        left = (13, 0)
-        right = (14, 0)
+        if game_state.get_resource(1) < 11:
+            gamelib.debug_write(f'Insufficient units to attack: {game_state.get_resource(1)}')
+            return
 
         # Determine resistance on left
-        left_resistance = 0
+        left_resistance = self.calc_left_resistance(game_state)
+        lowest_left_resistance = min(left_resistance.values())
+        filtered_left_resistance = [k for k, v in left_resistance.items() if v == lowest_left_resistance]
 
         # Determine resistance on right
-        right_resistance = 0
+        right_resistance = self.calc_right_resistance(game_state)
+        lowest_right_resistance = min(right_resistance.values())
+        filtered_right_resistance = [k for k, v in right_resistance.items() if v == lowest_right_resistance]
 
         def attack_left():
-            if game_state.can_spawn(SCOUT, left):
-                game_state.attempt_spawn(
-                    SCOUT, left, num=int(game_state.get_resource(1))
-                )
-                return True
+            for left in filtered_left_resistance:
+                if game_state.can_spawn(SCOUT, left):
+                    gamelib.debug_write(f'Attacking on {left} with {game_state.get_resource(1)}')
+                    game_state.attempt_spawn(
+                        SCOUT, left, num=int(game_state.get_resource(1))
+                    )
+                    return True
             return False
 
         def attack_right():
-            if game_state.can_spawn(SCOUT, right):
-                game_state.attempt_spawn(
-                    SCOUT, right, num=int(game_state.get_resource(1))
-                )
-                return True
+            for right in filtered_right_resistance:
+                if game_state.can_spawn(SCOUT, right):
+                    gamelib.debug_write(f'Attacking on {right} with {game_state.get_resource(1)}')
+                    game_state.attempt_spawn(
+                        SCOUT, right, num=int(game_state.get_resource(1))
+                    )
+                    return True
             return False
 
-        if left_resistance < right_resistance:
-            # Attack left
+        # Attack left
+        if lowest_left_resistance < lowest_right_resistance:
             if not attack_left():
                 # If attack left fails, attack right
                 attack_right()
