@@ -234,35 +234,47 @@ class AlgoStrategy(gamelib.AlgoCore):
 
     def attack_edge(self, game_state: GameState):
         if game_state.get_resource(1) < 11:
-            gamelib.debug_write(f'Insufficient units to attack: {game_state.get_resource(1)}')
+            gamelib.debug_write(
+                f"Insufficient units to attack: {game_state.get_resource(1)}"
+            )
             return
 
         # Determine resistance on left
         left_resistance = self.calc_left_resistance(game_state)
         lowest_left_resistance = min(left_resistance.values())
-        filtered_left_resistance = [k for k, v in left_resistance.items() if v == lowest_left_resistance]
+        filtered_left_resistance = [
+            k for k, v in left_resistance.items() if v == lowest_left_resistance
+        ]
 
         # Determine resistance on right
         right_resistance = self.calc_right_resistance(game_state)
         lowest_right_resistance = min(right_resistance.values())
-        filtered_right_resistance = [k for k, v in right_resistance.items() if v == lowest_right_resistance]
+        filtered_right_resistance = [
+            k for k, v in right_resistance.items() if v == lowest_right_resistance
+        ]
 
         def attack_left():
             for left in filtered_left_resistance:
+                left = list(left)
                 if game_state.can_spawn(SCOUT, left):
-                    gamelib.debug_write(f'Attacking on {left} with {game_state.get_resource(1)}')
+                    gamelib.debug_write(
+                        f"Attacking on {left} with {game_state.get_resource(1)}"
+                    )
                     game_state.attempt_spawn(
-                        SCOUT, left, num=int(game_state.get_resource(1))
+                        SCOUT, list(left), num=int(game_state.get_resource(1))
                     )
                     return True
             return False
 
         def attack_right():
             for right in filtered_right_resistance:
+                right = list(right)
                 if game_state.can_spawn(SCOUT, right):
-                    gamelib.debug_write(f'Attacking on {right} with {game_state.get_resource(1)}')
+                    gamelib.debug_write(
+                        f"Attacking on {right} with {game_state.get_resource(1)}"
+                    )
                     game_state.attempt_spawn(
-                        SCOUT, right, num=int(game_state.get_resource(1))
+                        SCOUT, list(right), num=int(game_state.get_resource(1))
                     )
                     return True
             return False
