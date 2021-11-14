@@ -49,6 +49,9 @@ class AlgoStrategy(gamelib.AlgoCore):
         MP = 1
         SP = 0
         # This is a good place to do initial setup
+        self.GAME_ROUND = 1
+        self.upgrade_priority = []
+        self.nonessential_structures = []
 
     def on_turn(self, turn_state):
         """
@@ -67,7 +70,9 @@ class AlgoStrategy(gamelib.AlgoCore):
         # Comment or remove this line to enable warnings.
         game_state.suppress_warnings(True)
 
-        self.hello_world(game_state)
+        self.build_structures(game_state)
+
+        self.attack_edge(game_state)
 
         game_state.submit_turn()
 
@@ -92,58 +97,102 @@ class AlgoStrategy(gamelib.AlgoCore):
                 gamelib.debug_write("Scored in turn {turn}")
                 self.scored_turns = [self.turn] + self.scored_turns
 
-    def hello_world(self, game_state: GameState):
-        turret_pos = [(3, 12), (24, 12), (9, 10), (18, 10), (13, 7)]
-        wall_pos_1 = [
-            [0, 13],
-            [1, 13],
-            [2, 13],
-            [3, 13],
-            [4, 13],
-            [5, 13],
-            [22, 13],
-            [23, 13],
-            [24, 13],
-            [25, 13],
-            [26, 13],
-            [27, 13],
+    def build_structures(self, game_state: GameState):
+        
+        essential_structures = [
+            (TURRET, [3, 12]), 
+            (TURRET, [24, 12]), 
+            (TURRET, [9, 10]), 
+            (TURRET, [18, 10]), 
+            (TURRET, [13, 10]),
+            (WALL, [1, 13]),
+            (WALL, [2, 13]),
+            (WALL, [3, 13]), 
+            (WALL, [4, 13]),
+            (WALL, [23, 13]),
+            (WALL, [5, 13]),
+            (WALL, [22, 13]),
+            (WALL, [24, 13]),
+            (WALL, [25, 13]),
+            (WALL, [26, 13]),
+            (WALL, [27, 13]),
+            (WALL, [8, 11]),
+            (WALL, [9, 11]),
+            (WALL, [10, 11]),
+            (WALL, [17, 11]),
+            (WALL, [18, 11]),
+            (WALL, [19, 11]),
+            (WALL, [0, 13]),
+            (WALL, [12, 11]),
+            (WALL, [13, 11]),
+            (WALL, [14, 11])
         ]
-
-        wall_pos_2 = [
-            [8, 11],
-            [9, 11],
-            [10, 11],
-            [11, 11],
-            [12, 11],
-            [15, 11],
-            [16, 11],
-            [17, 11],
-            [18, 11],
-            [19, 11],
+        #structures = [(i, k) for i, k in enumerate(structures)]
+        nonessentials = [
+            (TURRET, [21, 11]),
+            (TURRET, [6, 11]),
+            (WALL, [21, 11]),
+            (SUPPORT, [8, 10]),
+            (SUPPORT, [19, 10]),
+            (SUPPORT, [23, 11]),
+            (WALL, [7, 11]),
+            (WALL, [21, 12]),
+            (WALL, [6, 12]),
+            (WALL, [5, 12]),
+            (SUPPORT, [4, 11]),
+            (WALL, [20, 12])
         ]
+        # helper
+        def near_turret(loc):
+            if game_state.contains_stationary_unit(loc).unit_type == "TURRET":
+                return True
+            elif game_state.contains_stationary_unit([loc[0], loc[1]-1]) == "TURRET":
+                return True
+            elif game_state.contains_stationary_unit([loc[0]-1, loc[1]-1]) == "TURRET":
+                return True
+            elif game_state.contains_stationary_unit([loc[0]+1, loc[1]-1]) == "TURRET":
+                return True
+            return False
+            
+        # add initial structures, respawn if structure was destroyed
+        while (game_state.get_resource(0) >= 5) and essential_structures:
+            struc_type, loc = essential_structures.pop(0)
+            curr_structure = game_state.contains_stationary_unit(loc)
+            if game_state.can_spawn(struc_type, loc):
+                game_state.attempt_spawn(struc_type, loc)
+                # add to upgrade queue
+                # if self.GAME_ROUND > 1:
+                if(near_turret):
+                    self.upgrade_priority = [(struc_type, loc)] + self.upgrade_priority
+                        # nonessentials = [(TURRET, (loc[0]+1, loc[1]))] + nonessentials
+            elif curr_structure:
+                if curr_structure.health < curr_structure.max_health/2:
+                    if struc_type == TURRET:
+                        if loc[0] < 13:
+                            self.nonessential_structures.append((TURRET, (loc[0]+1, loc[1])))
+                        else:
+                            self.nonessential_structures.append((TURRET, (loc[0]-1, loc[1])))
+                            
+        # upgrade 
+        while (game_state.get_resource(0) >= 7) and self.upgrade_priority:
+            struc_type, loc = self.upgrade_priority.pop(0)
+            game_state.attempt_upgrade(loc)
 
-        # Redeploy stage
-        for pos in turret_pos:
-            if game_state.can_spawn(TURRET, pos):
-                gamelib.debug_write("deploying turret at {}".format(pos))
-                game_state.attempt_spawn(TURRET, pos)
-        for pos in wall_pos_1:
-            if game_state.can_spawn(WALL, pos):
-                game_state.attempt_spawn(WALL, pos)
-        for pos in wall_pos_2:
-            if game_state.can_spawn(WALL, pos):
-                game_state.attempt_spawn(WALL, pos)
+        self.nonessential_structures = self.nonessential_structures + nonessentials
+        while (game_state.get_resource(0) >= 5) and self.nonessential_structures:
+            structure = self.nonessential_structures.pop(0)
+            gamelib.debug_write(structure)
+            struc_type, loc = structure
+            if game_state.can_spawn(struc_type, loc):
+                game_state.attempt_spawn(struc_type, loc)
+            if(struc_type == TURRET):
+                self.upgrade_priority = [(struc_type, loc)] + self.upgrade_priority
 
-        # Repair stage
-        for pos in turret_pos:
-            game_state.attempt_upgrade(pos)
-        for pos in wall_pos_1:
-            game_state.attempt_upgrade(pos)
-        for pos in wall_pos_2:
-            game_state.attempt_upgrade(pos)
-
+        self.GAME_ROUND += 1
+        
         # Attack stage
         self.attack_edge(game_state)
+
 
     def calc_left_resistance(self, game_state: GameState):
         left_edges = [
