@@ -178,6 +178,171 @@ class AlgoStrategy(gamelib.AlgoCore):
                 )
         return edge_resistance
 
+    def calc_left_damages(self, game_state: GameState):
+        left_edges = [
+            [0, 13],
+            [1, 12],
+            [2, 11],
+            [3, 10],
+            [4, 9],
+            [5, 8],
+            [6, 7],
+            [7, 6],
+            [8, 5],
+            [9, 4],
+            [10, 3],
+            [11, 2],
+            [12, 1],
+            [13, 0],
+        ]
+        left_destinations = [
+            [14, 27],
+            [15, 26],
+            [16, 25],
+            [17, 24],
+            [18, 23],
+            [19, 22],
+            [20, 21],
+            [21, 20],
+            [22, 19],
+            [23, 18],
+            [24, 17],
+            [25, 16],
+            [26, 15],
+            [27, 14],
+            [13, 0],
+            [14, 0],
+        ]
+
+        edge_damages = {}
+        pathfinder = ShortestPathFinder()
+        for pos in left_edges:
+            # Typecast to tuple to become tuple
+            pos = tuple(pos)
+            path_edges = pathfinder.navigate_multiple_endpoints(
+                pos, left_destinations, game_state
+            )
+
+            attackable_targets = set()
+            attackable_turns = 0
+
+            if path_edges is None:
+                continue
+            for path_coord in path_edges:
+                # Still on my territory
+                if path_coord[1] < 10:
+                    continue
+                # Add number of stationary structures it will encounter. Break if we encounter a turret as it will die
+
+                # we want to send attackable targets/ turns to a max of 3 demolishers
+
+                targets = self.find_nearby_targets(game_state, path_coord)
+                if len(targets) > 0:
+                    attackable_turns += 1
+                    attackable_targets |= targets
+
+                if len(game_state.get_attackers(path_coord, 0)) > 0:
+                    break
+
+            edge_damages[pos] = (attackable_targets, attackable_turns)
+
+        return edge_damages
+
+    def calc_right_damages(self, game_state: GameState):
+        right_edges = [
+            [27, 13],
+            [26, 12],
+            [25, 11],
+            [24, 10],
+            [23, 9],
+            [22, 8],
+            [21, 7],
+            [20, 6],
+            [19, 5],
+            [18, 4],
+            [17, 3],
+            [16, 2],
+            [15, 1],
+            [14, 0],
+        ]
+        right_destinations = [
+            [13, 27],
+            [12, 26],
+            [11, 25],
+            [10, 24],
+            [9, 23],
+            [8, 22],
+            [7, 21],
+            [6, 20],
+            [5, 19],
+            [4, 18],
+            [3, 17],
+            [2, 16],
+            [1, 15],
+            [0, 14],
+        ]
+
+        edge_damages = {}
+        pathfinder = ShortestPathFinder()
+        for pos in right_edges:
+            # Typecast to tuple to become tuple
+            pos = tuple(pos)
+            path_edges = pathfinder.navigate_multiple_endpoints(
+                pos, right_destinations, game_state
+            )
+
+            attackable_targets = set()
+            attackable_turns = 0
+
+            if path_edges is None:
+                continue
+            for path_coord in path_edges:
+                # Still on my territory
+                if path_coord[1] < 10:
+                    continue
+                # Add number of stationary structures it will encounter. Break if we encounter a turret as it will die
+
+                # we want to send attackable targets/ turns to a max of 3 demolishers
+
+                targets = self.find_nearby_targets(game_state, path_coord)
+                if len(targets) > 0:
+                    attackable_turns += 1
+                    attackable_targets |= targets
+
+                if len(game_state.get_attackers(path_coord, 0)) > 0:
+                    break
+
+            edge_damages[pos] = (attackable_targets, attackable_turns)
+
+        return edge_damages
+
+    def find_nearby_targets(self, game_state: GameState, pos):
+
+        targets = set()
+        search_coords = game_state.game_map.get_locations_in_range(
+            location=pos, radius=4.5
+        )
+
+        for coord in search_coords:
+            if game_state.contains_stationary_unit(coord):
+                for unit in game_state.game_map[coord]:
+                    if unit.player_index == 1:
+                        targets.add(tuple(coord))
+
+        # gamelib.debug_write(f"Found stationary targets {targets} around {pos}\n")
+
+        return targets
+
+    def count_enemy_structures(self, game_state: GameState):
+        total_structures = 0
+        for location in game_state.game_map:
+            if game_state.contains_stationary_unit(location):
+                for unit in game_state.game_map[location]:
+                    if unit.player_index == 1:
+                        total_structures += 1
+
+        return total_structures
+
     def calc_right_resistance(self, game_state: GameState):
         right_edges = [
             [27, 13],
@@ -241,43 +406,113 @@ class AlgoStrategy(gamelib.AlgoCore):
 
         # Determine resistance on left
         left_resistance = self.calc_left_resistance(game_state)
+        left_damages = self.calc_left_damages(game_state)
         lowest_left_resistance = min(left_resistance.values())
         filtered_left_resistance = [
             k for k, v in left_resistance.items() if v == lowest_left_resistance
         ]
+        max_left_damage = max([v[1] for k, v in left_damages.items()])
+        filtered_left_damage = sorted(
+            [(k, v) for k, v in left_damages.items() if v[1] == max_left_damage],
+            key=lambda x: len(x[1][0]),
+            reverse=True,
+        )
 
         # Determine resistance on right
         right_resistance = self.calc_right_resistance(game_state)
+        right_damages = self.calc_left_damages(game_state)
         lowest_right_resistance = min(right_resistance.values())
         filtered_right_resistance = [
             k for k, v in right_resistance.items() if v == lowest_right_resistance
         ]
+        max_right_damage = max([v[1] for k, v in right_damages.items()])
+        filtered_right_damage = sorted(
+            [(k, v) for k, v in right_damages.items() if v[1] == max_right_damage],
+            key=lambda x: len(x[1][0]),
+            reverse=True,
+        )
 
         def attack_left():
-            for left in filtered_left_resistance:
-                left = list(left)
-                if game_state.can_spawn(SCOUT, left):
-                    gamelib.debug_write(
-                        f"Attacking on {left} with {game_state.get_resource(1)}"
-                    )
-                    game_state.attempt_spawn(
-                        SCOUT, list(left), num=int(game_state.get_resource(1))
-                    )
-                    return True
-            return False
+
+            total_structures = self.count_enemy_structures(game_state)
+
+            if total_structures < 15:
+                for left in filtered_left_resistance:
+                    left = list(left)
+                    if game_state.can_spawn(SCOUT, left):
+                        gamelib.debug_write(
+                            f"Rush Attacking on {left} with {game_state.get_resource(1)}"
+                        )
+                        game_state.attempt_spawn(
+                            SCOUT, list(left), num=int(game_state.get_resource(1))
+                        )
+                        return True
+                return False
+            else:
+                for left, data in filtered_left_damage:
+                    left = list(left)
+                    if game_state.can_spawn(DEMOLISHER, left):
+                        num_demolishers = int(
+                            max(min(3, len(data[0]) / (data[1] + 1)), 0)
+                        )
+                        num_scouts = int(
+                            game_state.get_resource(1) - 3 * num_demolishers
+                        )
+
+                        gamelib.debug_write(
+                            f"Demolisher can attack {len(data[0])} units across {data[1]} turns"
+                        )
+
+                        gamelib.debug_write(
+                            f"Demolish Attacking on {left} with {num_demolishers} demolishers and {num_scouts} scouts"
+                        )
+                        game_state.attempt_spawn(
+                            DEMOLISHER, list(left), num=num_demolishers
+                        )
+                        game_state.attempt_spawn(SCOUT, list(left), num=num_scouts)
+                        return True
+                return False
 
         def attack_right():
-            for right in filtered_right_resistance:
-                right = list(right)
-                if game_state.can_spawn(SCOUT, right):
-                    gamelib.debug_write(
-                        f"Attacking on {right} with {game_state.get_resource(1)}"
-                    )
-                    game_state.attempt_spawn(
-                        SCOUT, list(right), num=int(game_state.get_resource(1))
-                    )
-                    return True
-            return False
+
+            total_structures = self.count_enemy_structures(game_state)
+
+            if total_structures < 15:
+                for right in filtered_right_resistance:
+                    right = list(right)
+                    if game_state.can_spawn(SCOUT, right):
+                        gamelib.debug_write(
+                            f"Attacking on {right} with {game_state.get_resource(1)}"
+                        )
+                        game_state.attempt_spawn(
+                            SCOUT, list(right), num=int(game_state.get_resource(1))
+                        )
+                        return True
+                return False
+            else:
+                for right, data in filtered_right_damage:
+                    right = list(right)
+                    if game_state.can_spawn(DEMOLISHER, right):
+                        num_demolishers = int(
+                            max(min(3, len(data[0]) / (data[1] + 1)), 0)
+                        )
+                        num_scouts = int(
+                            game_state.get_resource(1) - 3 * num_demolishers
+                        )
+
+                        gamelib.debug_write(
+                            f"Demolisher can attack {len(data[0])} units across {data[1]} turns"
+                        )
+
+                        gamelib.debug_write(
+                            f"Demolish Attacking on {right} with {num_demolishers} demolishers and {num_scouts} scouts"
+                        )
+                        game_state.attempt_spawn(
+                            DEMOLISHER, list(right), num=num_demolishers
+                        )
+                        game_state.attempt_spawn(SCOUT, list(right), num=num_scouts)
+                        return True
+                return False
 
         # Attack left
         if lowest_left_resistance < lowest_right_resistance:
