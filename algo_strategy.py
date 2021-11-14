@@ -7,6 +7,7 @@ import json
 from queue import PriorityQueue
 
 from gamelib.game_state import GameState
+from gamelib.navigation import ShortestPathFinder
 
 
 """
@@ -46,7 +47,8 @@ class AlgoStrategy(gamelib.AlgoCore):
         MP = 1
         SP = 0
         self.GAME_ROUND = 1
-        self.upgrade_priority = PriorityQueue()
+        self.upgrade_priority = []
+        self.nonessential_structures = []
         
         # This is a good place to do initial setup
 
@@ -67,22 +69,28 @@ class AlgoStrategy(gamelib.AlgoCore):
         # Comment or remove this line to enable warnings.
         game_state.suppress_warnings(True)
 
-        self.hello_world(game_state)
+        self.build_structures(game_state)
+
+        # Attack stage
+        self.attack_edge(game_state)
 
         game_state.submit_turn()
 
-    def hello_world(self, game_state: GameState):
-        structures = [
+    def build_structures(self, game_state: GameState):
+        
+        essential_structures = [
             (TURRET, [3, 12]), 
             (TURRET, [24, 12]), 
             (TURRET, [9, 10]), 
             (TURRET, [18, 10]), 
-            (TURRET, [13, 7]),
+            (TURRET, [13, 10]),
             (WALL, [1, 13]),
             (WALL, [2, 13]),
             (WALL, [3, 13]), 
             (WALL, [4, 13]),
             (WALL, [23, 13]),
+            (WALL, [5, 13]),
+            (WALL, [22, 13]),
             (WALL, [24, 13]),
             (WALL, [25, 13]),
             (WALL, [26, 13]),
@@ -93,90 +101,79 @@ class AlgoStrategy(gamelib.AlgoCore):
             (WALL, [17, 11]),
             (WALL, [18, 11]),
             (WALL, [19, 11]),
-            (WALL, [0, 13])
+            (WALL, [0, 13]),
+            (WALL, [12, 11]),
+            (WALL, [13, 11]),
+            (WALL, [14, 11])
         ]
-        structures = [(i, k) for i, k in enumerate(structures)]
-
-        # initialize priority queue
-        essential_structures = PriorityQueue()
-        # for i, loc in enumerate(essential_turrets):
-        #     essential_structures.put((i, (TURRET, loc)))
-        # for i, loc in enumerate(essential_walls):
-        #     essential_structures.put((i + len(essential_turrets), (WALL, loc)))
-        for structure in structures:
-            essential_structures.put(structure)
-
-        # respawn if structure was destroyed
-        while not essential_structures.empty():
-            structure_obj = essential_structures.get()
-            structure = structure_obj[1]
-            if game_state.can_spawn(structure[0], structure[1]):
-                game_state.attempt_spawn(structure[0], structure[1])
+        #structures = [(i, k) for i, k in enumerate(structures)]
+        nonessentials = [
+            (TURRET, [21, 11]),
+            (TURRET, [6, 11]),
+            (WALL, [21, 11]),
+            (SUPPORT, [8, 10]),
+            (SUPPORT, [19, 10]),
+            (SUPPORT, [23, 11]),
+            (WALL, [7, 11]),
+            (WALL, [21, 12]),
+            (WALL, [6, 12]),
+            (WALL, [5, 12]),
+            (SUPPORT, [4, 11]),
+            (WALL, [20, 12])
+        ]
+        # helper
+        def near_turret(loc):
+            if game_state.contains_stationary_unit(loc).unit_type == "TURRET":
+                return True
+            elif game_state.contains_stationary_unit([loc[0], loc[1]-1]) == "TURRET":
+                return True
+            elif game_state.contains_stationary_unit([loc[0]-1, loc[1]-1]) == "TURRET":
+                return True
+            elif game_state.contains_stationary_unit([loc[0]+1, loc[1]-1]) == "TURRET":
+                return True
+            return False
+            
+        # add initial structures, respawn if structure was destroyed
+        while (game_state.get_resource(0) >= 5) and essential_structures:
+            struc_type, loc = essential_structures.pop(0)
+            curr_structure = game_state.contains_stationary_unit(loc)
+            if game_state.can_spawn(struc_type, loc):
+                game_state.attempt_spawn(struc_type, loc)
                 # add to upgrade queue
-                if self.GAME_ROUND > 1:
-                    self.upgrade_priority.put((structure_obj[0], structure[1]))
+                # if self.GAME_ROUND > 1:
+                if(near_turret):
+                    self.upgrade_priority = [(struc_type, loc)] + self.upgrade_priority
+                        # nonessentials = [(TURRET, (loc[0]+1, loc[1]))] + nonessentials
+            elif curr_structure:
+                if curr_structure.health < curr_structure.max_health/2:
+                    if struc_type == TURRET:
+                        if loc[0] < 13:
+                            self.nonessential_structures.append((TURRET, (loc[0]+1, loc[1])))
+                        else:
+                            self.nonessential_structures.append((TURRET, (loc[0]-1, loc[1])))
+                            
         # upgrade 
-        while (game_state.get_resource(0) > 0) and (not self.upgrade_priority.empty()):
-            structure = self.upgrade_priority.get()[1]
-            game_state.attempt_upgrade(structure)
+        while (game_state.get_resource(0) >= 7) and self.upgrade_priority:
+            struc_type, loc = self.upgrade_priority.pop(0)
+            game_state.attempt_upgrade(loc)
+
+        self.nonessential_structures = self.nonessential_structures + nonessentials
+        while (game_state.get_resource(0) >= 5) and self.nonessential_structures:
+            structure = self.nonessential_structures.pop(0)
+            gamelib.debug_write(structure)
+            struc_type, loc = structure
+            if game_state.can_spawn(struc_type, loc):
+                game_state.attempt_spawn(struc_type, loc)
+            if(struc_type == TURRET):
+                self.upgrade_priority = [(struc_type, loc)] + self.upgrade_priority
 
         self.GAME_ROUND += 1
         
-        # turret_pos = [(3, 12), (24, 12), (9, 10), (18, 10), (13, 7)]
-
-        # wall_pos_1 = [
-        #     [0, 13],
-        #     [1, 13],
-        #     [2, 13],
-        #     [3, 13],
-        #     [4, 13],
-        #     [23, 13],
-        #     [24, 13],
-        #     [25, 13],
-        #     [26, 13],
-        #     [27, 13],
-        #     [8, 11],
-        #     [9, 11],
-        #     [10, 11],
-        #     [17, 11],
-        #     [18, 11],
-        #     [19, 11]
-        #     ]
-
-        # wall_pos_2 = [
-        #     [8, 11],
-        #     [9, 11],
-        #     [10, 11],
-        #     [11, 11],
-        #     [12, 11],
-        #     [15, 11],
-        #     [16, 11],
-        #     [17, 11],
-        #     [18, 11],
-        #     [19, 11],
-        # ]
-
-        # Redeploy stage
-        # for pos in turret_pos:
-        #     if game_state.can_spawn(TURRET, pos):
-        #         # gamelib.debug_write("deploying turret at {}".format(pos))
-        #         game_state.attempt_spawn(TURRET, pos)
-        # for pos in wall_pos_1:
-        #     if game_state.can_spawn(WALL, pos):
-        #         game_state.attempt_spawn(WALL, pos)
-        # for pos in wall_pos_2:
-        #     if game_state.can_spawn(WALL, pos):
-        #         game_state.attempt_spawn(WALL, pos)
-        
-        # Repair stage
-        # for pos in turret_pos:
-        #     game_state.attempt_upgrade(pos)
-        # for pos in wall_pos_1:
-        #     game_state.attempt_upgrade(pos)
-        # for pos in wall_pos_2:
-        #     game_state.attempt_upgrade(pos)
+        # Attack stage
+        self.attack_edge(game_state)
 
 
+    def calc_left_resistance(self, game_state: GameState):
         left_edges = [
             [0, 13],
             [1, 12],
@@ -193,7 +190,46 @@ class AlgoStrategy(gamelib.AlgoCore):
             [12, 1],
             [13, 0],
         ]
+        left_destinations = [
+            [14, 27],
+            [15, 26],
+            [16, 25],
+            [17, 24],
+            [18, 23],
+            [19, 22],
+            [20, 21],
+            [21, 20],
+            [22, 19],
+            [23, 18],
+            [24, 17],
+            [25, 16],
+            [26, 15],
+            [27, 14],
+            [13, 0],
+            [14, 0],
+        ]
 
+        edge_resistance = {}
+        pathfinder = ShortestPathFinder()
+        for pos in left_edges:
+            # Typecast to tuple to become tuple
+            pos = tuple(pos)
+            path_edges = pathfinder.navigate_multiple_endpoints(
+                pos, left_destinations, game_state
+            )
+            if path_edges is None:
+                continue
+            for path in path_edges:
+                # Still on my territory
+                if path[1] < 11:
+                    continue
+                # Add number of attackers
+                edge_resistance[pos] = edge_resistance.get(pos, 0) + len(
+                    game_state.get_attackers(path, 0)
+                )
+        return edge_resistance
+
+    def calc_right_resistance(self, game_state: GameState):
         right_edges = [
             [27, 13],
             [26, 12],
@@ -210,12 +246,100 @@ class AlgoStrategy(gamelib.AlgoCore):
             [15, 1],
             [14, 0],
         ]
+        right_destinations = [
+            [13, 27],
+            [12, 26],
+            [11, 25],
+            [10, 24],
+            [9, 23],
+            [8, 22],
+            [7, 21],
+            [6, 20],
+            [5, 19],
+            [4, 18],
+            [3, 17],
+            [2, 16],
+            [1, 15],
+            [0, 14],
+        ]
 
-        left = left_edges[11]
-        right = right_edges[11]
-        if game_state.get_resource(1) > 10:
-            if game_state.can_spawn(SCOUT, left):
-                game_state.attempt_spawn(SCOUT, left, num=int(game_state.get_resource(1)))
+        edge_resistance = {}
+        pathfinder = ShortestPathFinder()
+        for pos in right_edges:
+            # Typecast to tuple to become tuple
+            pos = tuple(pos)
+            path_edges = pathfinder.navigate_multiple_endpoints(
+                pos, right_destinations, game_state
+            )
+            if path_edges is None:
+                continue
+            for path in path_edges:
+                # Still on my territory
+                if path[1] < 11:
+                    continue
+                # Add number of attackers and register edge
+                edge_resistance[pos] = edge_resistance.get(pos, 0) + len(
+                    game_state.get_attackers(path, 0)
+                )
+        return edge_resistance
+
+    def attack_edge(self, game_state: GameState):
+        if game_state.get_resource(1) < 11:
+            gamelib.debug_write(
+                f"Insufficient units to attack: {game_state.get_resource(1)}"
+            )
+            return
+
+        # Determine resistance on left
+        left_resistance = self.calc_left_resistance(game_state)
+        lowest_left_resistance = min(left_resistance.values())
+        filtered_left_resistance = [
+            k for k, v in left_resistance.items() if v == lowest_left_resistance
+        ]
+
+        # Determine resistance on right
+        right_resistance = self.calc_right_resistance(game_state)
+        lowest_right_resistance = min(right_resistance.values())
+        filtered_right_resistance = [
+            k for k, v in right_resistance.items() if v == lowest_right_resistance
+        ]
+
+        def attack_left():
+            for left in filtered_left_resistance:
+                left = list(left)
+                if game_state.can_spawn(SCOUT, left):
+                    gamelib.debug_write(
+                        f"Attacking on {left} with {game_state.get_resource(1)}"
+                    )
+                    game_state.attempt_spawn(
+                        SCOUT, list(left), num=int(game_state.get_resource(1))
+                    )
+                    return True
+            return False
+
+        def attack_right():
+            for right in filtered_right_resistance:
+                right = list(right)
+                if game_state.can_spawn(SCOUT, right):
+                    gamelib.debug_write(
+                        f"Attacking on {right} with {game_state.get_resource(1)}"
+                    )
+                    game_state.attempt_spawn(
+                        SCOUT, list(right), num=int(game_state.get_resource(1))
+                    )
+                    return True
+            return False
+
+        # Attack left
+        if lowest_left_resistance < lowest_right_resistance:
+            if not attack_left():
+                # If attack left fails, attack right
+                attack_right()
+        else:
+            # Attack right
+            if not attack_right():
+                # If attack right fails, attack left
+                attack_left()
 
 
 if __name__ == "__main__":
