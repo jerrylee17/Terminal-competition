@@ -4,23 +4,89 @@ import math
 import warnings
 from sys import maxsize
 import json
+from gamelib import game_state
 
 from gamelib.game_state import GameState
 from gamelib.navigation import ShortestPathFinder
+from gamelib.unit import GameUnit
 
 
 """
 Most of the algo code you write will be in this file unless you create new
 modules yourself. Start by modifying the 'on_turn' function.
 
-Advanced strategy tips: 
+Advanced strategy tips:
 
   - You can analyze action frames by modifying on_action_frame function
 
-  - The GameState.map object can be manually manipulated to create hypothetical 
-  board states. Though, we recommended making a copy of the map to preserve 
+  - The GameState.map object can be manually manipulated to create hypothetical
+  board states. Though, we recommended making a copy of the map to preserve
   the actual current map state.
 """
+right_edges = [
+    [27, 13],
+    [26, 12],
+    [25, 11],
+    [24, 10],
+    [23, 9],
+    [22, 8],
+    [21, 7],
+    [20, 6],
+    [19, 5],
+    [18, 4],
+    [17, 3],
+    [16, 2],
+    [15, 1],
+    [14, 0],
+]
+right_destinations = [
+    [13, 27],
+    [12, 26],
+    [11, 25],
+    [10, 24],
+    [9, 23],
+    [8, 22],
+    [7, 21],
+    [6, 20],
+    [5, 19],
+    [4, 18],
+    [3, 17],
+    [2, 16],
+    [1, 15],
+    [0, 14],
+]
+left_edges = [
+    [0, 13],
+    [1, 12],
+    [2, 11],
+    [3, 10],
+    [4, 9],
+    [5, 8],
+    [6, 7],
+    [7, 6],
+    [8, 5],
+    [9, 4],
+    [10, 3],
+    [11, 2],
+    [12, 1],
+    [13, 0],
+]
+left_destinations = [
+    [14, 27],
+    [15, 26],
+    [16, 25],
+    [17, 24],
+    [18, 23],
+    [19, 22],
+    [20, 21],
+    [21, 20],
+    [22, 19],
+    [23, 18],
+    [24, 17],
+    [25, 16],
+    [26, 15],
+    [27, 14],
+]
 
 
 class AlgoStrategy(gamelib.AlgoCore):
@@ -78,7 +144,7 @@ class AlgoStrategy(gamelib.AlgoCore):
 
     def on_action_frame(self, turn_string):
         """
-        This is the action frame of the game. This function could be called 
+        This is the action frame of the game. This function could be called
         hundreds of times per turn and could slow the algo down so avoid putting slow code here.
         Processing the action frames is complicated so we only suggest it if you have time and experience.
         Full doc on format of a game frame at in json-docs.html in the root of the Starterkit.
@@ -98,16 +164,16 @@ class AlgoStrategy(gamelib.AlgoCore):
                 self.scored_turns = [self.turn] + self.scored_turns
 
     def build_structures(self, game_state: GameState):
-        
+
         essential_structures = [
-            (TURRET, [3, 12]), 
-            (TURRET, [24, 12]), 
-            (TURRET, [9, 10]), 
-            (TURRET, [18, 10]), 
+            (TURRET, [3, 12]),
+            (TURRET, [24, 12]),
+            (TURRET, [9, 10]),
+            (TURRET, [18, 10]),
             (TURRET, [13, 10]),
             (WALL, [1, 13]),
             (WALL, [2, 13]),
-            (WALL, [3, 13]), 
+            (WALL, [3, 13]),
             (WALL, [4, 13]),
             (WALL, [23, 13]),
             (WALL, [5, 13]),
@@ -127,7 +193,7 @@ class AlgoStrategy(gamelib.AlgoCore):
             (WALL, [13, 11]),
             (WALL, [14, 11])
         ]
-        #structures = [(i, k) for i, k in enumerate(structures)]
+        # structures = [(i, k) for i, k in enumerate(structures)]
         nonessentials = [
             (TURRET, [21, 11]),
             (TURRET, [6, 11]),
@@ -143,6 +209,7 @@ class AlgoStrategy(gamelib.AlgoCore):
             (WALL, [20, 12])
         ]
         # helper
+
         def near_turret(loc):
             if game_state.contains_stationary_unit(loc).unit_type == "TURRET":
                 return True
@@ -153,7 +220,7 @@ class AlgoStrategy(gamelib.AlgoCore):
             elif game_state.contains_stationary_unit([loc[0]+1, loc[1]-1]) == "TURRET":
                 return True
             return False
-            
+
         # add initial structures, respawn if structure was destroyed
         while (game_state.get_resource(0) >= 5) and essential_structures:
             struc_type, loc = essential_structures.pop(0)
@@ -163,17 +230,20 @@ class AlgoStrategy(gamelib.AlgoCore):
                 # add to upgrade queue
                 # if self.GAME_ROUND > 1:
                 if(near_turret):
-                    self.upgrade_priority = [(struc_type, loc)] + self.upgrade_priority
-                        # nonessentials = [(TURRET, (loc[0]+1, loc[1]))] + nonessentials
+                    self.upgrade_priority = [
+                        (struc_type, loc)] + self.upgrade_priority
+                    # nonessentials = [(TURRET, (loc[0]+1, loc[1]))] + nonessentials
             elif curr_structure:
                 if curr_structure.health < curr_structure.max_health/2:
                     if struc_type == TURRET:
                         if loc[0] < 13:
-                            self.nonessential_structures.append((TURRET, (loc[0]+1, loc[1])))
+                            self.nonessential_structures.append(
+                                (TURRET, (loc[0]+1, loc[1])))
                         else:
-                            self.nonessential_structures.append((TURRET, (loc[0]-1, loc[1])))
-                            
-        # upgrade 
+                            self.nonessential_structures.append(
+                                (TURRET, (loc[0]-1, loc[1])))
+
+        # upgrade
         while (game_state.get_resource(0) >= 7) and self.upgrade_priority:
             struc_type, loc = self.upgrade_priority.pop(0)
             game_state.attempt_upgrade(loc)
@@ -181,52 +251,21 @@ class AlgoStrategy(gamelib.AlgoCore):
         self.nonessential_structures = self.nonessential_structures + nonessentials
         while (game_state.get_resource(0) >= 5) and self.nonessential_structures:
             structure = self.nonessential_structures.pop(0)
-            gamelib.debug_write(structure)
             struc_type, loc = structure
             if game_state.can_spawn(struc_type, loc):
                 game_state.attempt_spawn(struc_type, loc)
             if(struc_type == TURRET):
-                self.upgrade_priority = [(struc_type, loc)] + self.upgrade_priority
+                self.upgrade_priority = [
+                    (struc_type, loc)] + self.upgrade_priority
 
         self.GAME_ROUND += 1
-        
+
         # Attack stage
         self.attack_edge(game_state)
 
-
     def calc_left_resistance(self, game_state: GameState):
-        left_edges = [
-            [0, 13],
-            [1, 12],
-            [2, 11],
-            [3, 10],
-            [4, 9],
-            [5, 8],
-            [6, 7],
-            [7, 6],
-            [8, 5],
-            [9, 4],
-            [10, 3],
-            [11, 2],
-            [12, 1],
-            [13, 0],
-        ]
-        left_destinations = [
-            [14, 27],
-            [15, 26],
-            [16, 25],
-            [17, 24],
-            [18, 23],
-            [19, 22],
-            [20, 21],
-            [21, 20],
-            [22, 19],
-            [23, 18],
-            [24, 17],
-            [25, 16],
-            [26, 15],
-            [27, 14],
-        ]
+        global left_edges
+        global left_destinations
 
         edge_resistance = {}
         pathfinder = ShortestPathFinder()
@@ -238,49 +277,69 @@ class AlgoStrategy(gamelib.AlgoCore):
             )
             if path_edges is None:
                 continue
+            edge_resistance[pos] = edge_resistance.get(pos, 0)
             for path in path_edges:
                 # Still on my territory
                 if path[1] < 11:
                     continue
-                # Add number of attackers
-                edge_resistance[pos] = edge_resistance.get(pos, 0) + len(
-                    game_state.get_attackers(path, 0)
-                )
+                # Add number of attackers and register edge
+                attackers = game_state.get_attackers(path, 0)
+                for unit in attackers:
+                    weight = self.calc_unit_weight(game_state, unit)
+                    edge_resistance[pos] += weight
         return edge_resistance
 
+    def calc_right_resistance(self, game_state: GameState):
+        global right_edges
+        global right_destinations
+        edge_resistance = {}
+        pathfinder = ShortestPathFinder()
+        for pos in right_edges:
+            # Typecast to tuple to become tuple
+            pos = tuple(pos)
+            path_edges = pathfinder.navigate_multiple_endpoints(
+                pos, right_destinations, game_state
+            )
+            if path_edges is None:
+                continue
+            edge_resistance[pos] = edge_resistance.get(pos, 0)
+            for path in path_edges:
+                # Still on my territory
+                if path[1] < 11:
+                    continue
+                # Add number of attackers and register edge
+                attackers = game_state.get_attackers(path, 0)
+                for unit in attackers:
+                    weight = self.calc_unit_weight(game_state, unit)
+                    edge_resistance[pos] += weight
+        return edge_resistance
+
+    def calc_unit_weight(self, game_state: GameState, unit: GameUnit):
+        weight = max(unit.health, 40)
+        if unit.upgraded:
+            weight *= 2
+        defense_wall_loc_array = [
+            (-1, -1),
+            (0, -1),
+            (1, -1),
+            (1, 0),
+            (-1, 0),
+            (1, 1),
+            (-1, 1)
+        ]
+        for dir_x, dir_y in defense_wall_loc_array:
+            new_square = [unit.x + dir_x, unit.y + dir_y]
+            surrounding_unit = game_state.contains_stationary_unit(new_square)
+            # unit does not exist or owner is me
+            if not surrounding_unit or surrounding_unit.player_index == 0 or surrounding_unit.unit_type != WALL:
+                continue
+            weight += surrounding_unit.health // 6
+
+        return weight
+
     def calc_left_damages(self, game_state: GameState):
-        left_edges = [
-            [0, 13],
-            [1, 12],
-            [2, 11],
-            [3, 10],
-            [4, 9],
-            [5, 8],
-            [6, 7],
-            [7, 6],
-            [8, 5],
-            [9, 4],
-            [10, 3],
-            [11, 2],
-            [12, 1],
-            [13, 0],
-        ]
-        left_destinations = [
-            [14, 27],
-            [15, 26],
-            [16, 25],
-            [17, 24],
-            [18, 23],
-            [19, 22],
-            [20, 21],
-            [21, 20],
-            [22, 19],
-            [23, 18],
-            [24, 17],
-            [25, 16],
-            [26, 15],
-            [27, 14],
-        ]
+        global left_edges
+        global left_destinations
 
         edge_damages = {}
         pathfinder = ShortestPathFinder()
@@ -314,43 +373,11 @@ class AlgoStrategy(gamelib.AlgoCore):
 
             edge_damages[pos] = (attackable_targets, attackable_turns)
 
-        gamelib.debug_write(f"Left damages: {edge_damages}")
-
         return edge_damages
 
     def calc_right_damages(self, game_state: GameState):
-        right_edges = [
-            [27, 13],
-            [26, 12],
-            [25, 11],
-            [24, 10],
-            [23, 9],
-            [22, 8],
-            [21, 7],
-            [20, 6],
-            [19, 5],
-            [18, 4],
-            [17, 3],
-            [16, 2],
-            [15, 1],
-            [14, 0],
-        ]
-        right_destinations = [
-            [13, 27],
-            [12, 26],
-            [11, 25],
-            [10, 24],
-            [9, 23],
-            [8, 22],
-            [7, 21],
-            [6, 20],
-            [5, 19],
-            [4, 18],
-            [3, 17],
-            [2, 16],
-            [1, 15],
-            [0, 14],
-        ]
+        global right_edges
+        global right_destinations
 
         edge_damages = {}
         pathfinder = ShortestPathFinder()
@@ -381,9 +408,6 @@ class AlgoStrategy(gamelib.AlgoCore):
                     attackable_targets |= targets
 
             edge_damages[pos] = (attackable_targets, attackable_turns)
-
-        gamelib.debug_write(f"Right damages: {edge_damages}")
-
         return edge_damages
 
     def find_nearby_targets(self, game_state: GameState, pos):
@@ -413,60 +437,6 @@ class AlgoStrategy(gamelib.AlgoCore):
 
         return total_structures
 
-    def calc_right_resistance(self, game_state: GameState):
-        right_edges = [
-            [27, 13],
-            [26, 12],
-            [25, 11],
-            [24, 10],
-            [23, 9],
-            [22, 8],
-            [21, 7],
-            [20, 6],
-            [19, 5],
-            [18, 4],
-            [17, 3],
-            [16, 2],
-            [15, 1],
-            [14, 0],
-        ]
-        right_destinations = [
-            [13, 27],
-            [12, 26],
-            [11, 25],
-            [10, 24],
-            [9, 23],
-            [8, 22],
-            [7, 21],
-            [6, 20],
-            [5, 19],
-            [4, 18],
-            [3, 17],
-            [2, 16],
-            [1, 15],
-            [0, 14],
-        ]
-
-        edge_resistance = {}
-        pathfinder = ShortestPathFinder()
-        for pos in right_edges:
-            # Typecast to tuple to become tuple
-            pos = tuple(pos)
-            path_edges = pathfinder.navigate_multiple_endpoints(
-                pos, right_destinations, game_state
-            )
-            if path_edges is None:
-                continue
-            for path in path_edges:
-                # Still on my territory
-                if path[1] < 11:
-                    continue
-                # Add number of attackers and register edge
-                edge_resistance[pos] = edge_resistance.get(pos, 0) + len(
-                    game_state.get_attackers(path, 0)
-                )
-        return edge_resistance
-
     def attack_edge(self, game_state: GameState):
         if game_state.get_resource(1) < self.calculate_attack_resource_limit():
             gamelib.debug_write(
@@ -474,18 +444,19 @@ class AlgoStrategy(gamelib.AlgoCore):
             )
             return
 
-        # Determine resistance on left
+        # Determine resistance/damage on left
         left_resistance = self.calc_left_resistance(game_state)
         left_damages = self.calc_left_damages(game_state)
         lowest_left_resistance = min(left_resistance.values())
         max_left_damage = max([v[1] for k, v in left_damages.items()])
 
-        # Determine resistance on right
+        # Determine resistance/damage on right
         right_resistance = self.calc_right_resistance(game_state)
         right_damages = self.calc_right_damages(game_state)
         lowest_right_resistance = min(right_resistance.values())
         max_right_damage = max([v[1] for k, v in right_damages.items()])
 
+        # Calculate lowest resistance/damage
         lowest_resistance = min(lowest_left_resistance,
                                 lowest_right_resistance)
         filtered_low_resistance = list(
@@ -507,10 +478,12 @@ class AlgoStrategy(gamelib.AlgoCore):
             reverse=True,
         )
 
+        # Determinme how many of each strucutre to spawn
         total_structures = self.count_enemy_structures(game_state)
         num_demolishers = 0
         num_scouts = int(game_state.get_resource(1))
 
+        # Spawn demolishers
         if total_structures > 20:
             for spawn, data in filtered_max_damage:
                 spawn = list(spawn)
@@ -524,15 +497,14 @@ class AlgoStrategy(gamelib.AlgoCore):
                     )
 
                     gamelib.debug_write(
-                        f"Demolisher can attack {len(data[0])} units across {data[1]} turns"
-                    )
-
-                    gamelib.debug_write(
                         f"Demolish Attacking on {spawn} with {num_demolishers} demolishers"
                     )
                     game_state.attempt_spawn(
-                        DEMOLISHER, spawn, num=num_demolishers)
+                        DEMOLISHER, spawn, num=num_demolishers
+                    )
 
+        random.shuffle(filtered_low_resistance)
+        # Spawn scouts
         for spawn, data in filtered_low_resistance:
             spawn = list(spawn)
             if game_state.can_spawn(SCOUT, spawn):
