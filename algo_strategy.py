@@ -429,27 +429,16 @@ class AlgoStrategy(gamelib.AlgoCore):
         left_resistance = self.calc_left_resistance(game_state)
         left_damages = self.calc_left_damages(game_state)
         lowest_left_resistance = min(left_resistance.values())
-        # filtered_left_resistance = [
-        #     (k, v) for k, v in left_resistance.items() if v == lowest_left_resistance
-        # ]
         max_left_damage = max([v[1] for k, v in left_damages.items()])
-        # formatted_left_damage = sorted([
-        #     (k, v) for k, v in left_damages.items() if v[1] == max_left_damage
-        # ], key=lambda x: len(x[1][0]), reverse=True)
 
         # Determine resistance on right
         right_resistance = self.calc_right_resistance(game_state)
         right_damages = self.calc_right_damages(game_state)
         lowest_right_resistance = min(right_resistance.values())
-        # filtered_right_resistance = [
-        #     (k, v) for k, v in right_resistance.items() if v == lowest_right_resistance
-        # ]
         max_right_damage = max([v[1] for k, v in right_damages.items()])
-        # formatted_right_damage = sorted([
-        #     (k, v) for k, v in right_damages.items() if v[1] == max_right_damage
-        # ], key=lambda x: len(x[1][0]), reverse=True)
 
-        lowest_resistance = min(lowest_left_resistance, lowest_right_resistance)
+        lowest_resistance = min(lowest_left_resistance,
+                                lowest_right_resistance)
         filtered_low_resistance = list(
             filter(
                 lambda x: x[1] == lowest_resistance,
@@ -469,48 +458,39 @@ class AlgoStrategy(gamelib.AlgoCore):
             reverse=True,
         )
 
-        def attack():
+        total_structures = self.count_enemy_structures(game_state)
+        num_demolishers = 0
+        num_scouts = int(game_state.get_resource(1))
 
-            total_structures = self.count_enemy_structures(game_state)
-
-            can_spawn_anything = False
-
-            num_demolishers = 0
-            num_scouts = int(game_state.get_resource(1))
-
-            if total_structures > 20:
-                for spawn, data in filtered_max_damage:
-                    spawn = list(spawn)
-                    if game_state.can_spawn(DEMOLISHER, spawn):
-                        can_spawn_anything = True
-
-                        num_demolishers = int(
-                            max(min(3, len(data[0]) / (data[1] + 1)), 0)
-                        )
-                        num_scouts = int(
-                            game_state.get_resource(1) - 3 * num_demolishers
-                        )
-
-                        gamelib.debug_write(
-                            f"Demolisher can attack {len(data[0])} units across {data[1]} turns"
-                        )
-
-                        gamelib.debug_write(
-                            f"Demolish Attacking on {spawn} with {num_demolishers} demolishers"
-                        )
-                        game_state.attempt_spawn(DEMOLISHER, spawn, num=num_demolishers)
-
-            for spawn, data in filtered_low_resistance:
+        if total_structures > 20:
+            for spawn, data in filtered_max_damage:
                 spawn = list(spawn)
-                if game_state.can_spawn(SCOUT, spawn):
-                    can_spawn_anything = True
+                if game_state.can_spawn(DEMOLISHER, spawn):
 
-                    gamelib.debug_write(f"Scout Attacking on {spawn} with {num_scouts}")
-                    game_state.attempt_spawn(SCOUT, spawn, num=num_scouts)
+                    num_demolishers = int(
+                        max(min(3, len(data[0]) / (data[1] + 1)), 0)
+                    )
+                    num_scouts = int(
+                        game_state.get_resource(1) - 3 * num_demolishers
+                    )
 
-            return can_spawn_anything
+                    gamelib.debug_write(
+                        f"Demolisher can attack {len(data[0])} units across {data[1]} turns"
+                    )
 
-        attack()
+                    gamelib.debug_write(
+                        f"Demolish Attacking on {spawn} with {num_demolishers} demolishers"
+                    )
+                    game_state.attempt_spawn(
+                        DEMOLISHER, spawn, num=num_demolishers)
+
+        for spawn, data in filtered_low_resistance:
+            spawn = list(spawn)
+            if game_state.can_spawn(SCOUT, spawn):
+
+                gamelib.debug_write(
+                    f"Scout Attacking on {spawn} with {num_scouts}")
+                game_state.attempt_spawn(SCOUT, spawn, num=num_scouts)
 
     def calculate_attack_resource_limit(self):
         turns_since_last_breach = self.turn - self.scored_turns[0]
