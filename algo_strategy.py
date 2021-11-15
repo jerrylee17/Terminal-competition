@@ -138,6 +138,9 @@ class AlgoStrategy(gamelib.AlgoCore):
 
         self.build_structures(game_state)
 
+        if self.is_under_pressure(game_state):
+            self.spawn_interceptors(game_state)
+
         self.attack_edge(game_state)
 
         game_state.submit_turn()
@@ -427,18 +430,18 @@ class AlgoStrategy(gamelib.AlgoCore):
 
         return targets
 
-    def count_enemy_structures(self, game_state: GameState):
+    def count_player_structures(self, game_state: GameState, player: int):
         total_structures = 0
         for location in game_state.game_map:
             if game_state.contains_stationary_unit(location):
                 for unit in game_state.game_map[location]:
-                    if unit.player_index == 1:
+                    if unit.player_index == player:
                         total_structures += 1
 
         return total_structures
 
     def attack_edge(self, game_state: GameState):
-        if game_state.get_resource(1) < self.calculate_attack_resource_limit():
+        if game_state.get_resource(1) < self.calculate_attack_resource_limit(game_state):
             gamelib.debug_write(
                 f"Insufficient units to attack: {game_state.get_resource(1)}"
             )
@@ -479,7 +482,7 @@ class AlgoStrategy(gamelib.AlgoCore):
         )
 
         # Determinme how many of each strucutre to spawn
-        total_structures = self.count_enemy_structures(game_state)
+        total_structures = self.count_player_structures(game_state, 1)
         num_demolishers = 0
         num_scouts = int(game_state.get_resource(1))
 
@@ -513,9 +516,100 @@ class AlgoStrategy(gamelib.AlgoCore):
                     f"Scout Attacking on {spawn} with {num_scouts}")
                 game_state.attempt_spawn(SCOUT, spawn, num=num_scouts)
 
-    def calculate_attack_resource_limit(self):
+    def calculate_attack_resource_limit(self, game_state: GameState):
         turns_since_last_breach = self.turn - self.scored_turns[0]
-        return 11 + min(turns_since_last_breach / 6, 9)
+        pressure_offset = 4 if self.is_under_pressure(game_state) else 0
+        return 11 + min(turns_since_last_breach / 8, 9 - pressure_offset) - pressure_offset
+
+    def is_under_pressure(self, game_state: GameState):
+        return self.count_player_structures(game_state, 0) < 30
+
+    def calc_left_safe_spawns(self, game_state: GameState):
+        global left_edges
+        global left_destinations
+
+        safe_spots = []
+
+        pathfinder = ShortestPathFinder()
+        for pos in left_edges:
+            # Typecast to tuple to become tuple
+            pos = tuple(pos)
+            path_edges = pathfinder.navigate_multiple_endpoints(
+                pos, left_destinations, game_state
+            )
+            if path_edges is None:
+                continue
+
+            is_safe = True
+
+            for path in path_edges:
+                # About to leave own territory, so don't care about losing it
+                if path[1] > 13:
+                    break
+
+                # If we can be attacked then it's not safe
+                if len(game_state.get_attackers(path, 0)) > 0:
+                    is_safe = False
+                    break
+
+            if is_safe:
+                safe_spots.append(pos)
+
+        return safe_spots
+
+    def calc_right_safe_spawns(self, game_state: GameState):
+        global right_edges
+        global right_destinations
+
+        safe_spots = []
+
+        pathfinder = ShortestPathFinder()
+        for pos in right_edges:
+            # Typecast to tuple to become tuple
+            pos = tuple(pos)
+            path_edges = pathfinder.navigate_multiple_endpoints(
+                pos, right_destinations, game_state
+            )
+            if path_edges is None:
+                continue
+
+            is_safe = True
+
+            for path in path_edges:
+                # About to leave own territory, so don't care about losing it
+                if path[1] > 13:
+                    break
+
+                # If we can be attacked then it's not safe
+                if len(game_state.get_attackers(path, 0)) > 0:
+                    is_safe = False
+                    break
+
+            if is_safe:
+                safe_spots.append(pos)
+
+        return safe_spots
+
+    def spawn_interceptors(self, game_state: GameState):
+        spawn_count_per_side = 2 if self.count_player_structures(
+            game_state, 0) < 15 else 1
+
+        left_safe_spawns = self.calc_left_safe_spawns(game_state)
+        right_safe_spawns = self.calc_right_safe_spawns(game_state)
+
+        for spawn in left_safe_spawns:
+            spawn = list(spawn)
+            if game_state.can_spawn(INTERCEPTOR, spawn):
+                game_state.attempt_spawn(
+                    INTERCEPTOR, spawn, num=spawn_count_per_side)
+                break
+
+        for spawn in right_safe_spawns:
+            spawn = list(spawn)
+            if game_state.can_spawn(INTERCEPTOR, spawn):
+                game_state.attempt_spawn(
+                    INTERCEPTOR, spawn, num=spawn_count_per_side)
+                break
 
 
 if __name__ == "__main__":
