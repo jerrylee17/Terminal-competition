@@ -74,6 +74,8 @@ class AlgoStrategy(gamelib.AlgoCore):
 
         self.attack_edge(game_state)
 
+        self.remove_structures(game_state)
+
         game_state.submit_turn()
 
     def on_action_frame(self, turn_string):
@@ -98,36 +100,37 @@ class AlgoStrategy(gamelib.AlgoCore):
                 self.scored_turns = [self.turn] + self.scored_turns
 
     def build_structures(self, game_state: GameState):
-        
+
         essential_structures = [
-            (TURRET, [3, 12]), 
-            (TURRET, [24, 12]), 
-            (TURRET, [9, 10]), 
-            (TURRET, [18, 10]), 
-            (TURRET, [13, 10]),
-            (WALL, [1, 13]),
-            (WALL, [2, 13]),
-            (WALL, [3, 13]), 
-            (WALL, [4, 13]),
-            (WALL, [23, 13]),
-            (WALL, [5, 13]),
-            (WALL, [22, 13]),
             (WALL, [24, 13]),
-            (WALL, [25, 13]),
-            (WALL, [26, 13]),
-            (WALL, [27, 13]),
-            (WALL, [8, 11]),
-            (WALL, [9, 11]),
-            (WALL, [10, 11]),
-            (WALL, [17, 11]),
+            (WALL, [23, 13]),
             (WALL, [18, 11]),
-            (WALL, [19, 11]),
+            (WALL, [9, 11]),
+            (WALL, [25, 13]),
+            (WALL, [2, 13]),
+            (WALL, [3, 13]),
+            (TURRET, [3, 12]),
+            (TURRET, [24, 12]),
+            (TURRET, [9, 10]),
+            (TURRET, [18, 10]),
+            (TURRET, [13, 10]),
+            (WALL, [27, 13]),
             (WALL, [0, 13]),
+            (WALL, [26, 13]),
+            (WALL, [1, 13]),
+            (WALL, [4, 13]),
+            (WALL, [5, 13]),
+            (WALL, [17, 11]),
+            (WALL, [19, 11]),
+            (WALL, [8, 11]),
+            (WALL, [10, 11]),
+            (WALL, [22, 13]),
+            (WALL, [4, 13]),
             (WALL, [12, 11]),
             (WALL, [13, 11]),
             (WALL, [14, 11])
         ]
-        #structures = [(i, k) for i, k in enumerate(structures)]
+
         nonessentials = [
             (TURRET, [21, 11]),
             (TURRET, [6, 11]),
@@ -140,8 +143,15 @@ class AlgoStrategy(gamelib.AlgoCore):
             (WALL, [6, 12]),
             (WALL, [5, 12]),
             (SUPPORT, [4, 11]),
-            (WALL, [20, 12])
+            (WALL, [20, 12]),
+            (WALL, [11, 11]),
+            (WALL, [15, 11]),
+            (TURRET, [24, 11]),
+            (TURRET, [3, 11]),
+            (TURRET, [15, 10]),
+            (TURRET, [11, 10]),
         ]
+
         # helper
         def near_turret(loc):
             if game_state.contains_stationary_unit(loc).unit_type == "TURRET":
@@ -153,7 +163,7 @@ class AlgoStrategy(gamelib.AlgoCore):
             elif game_state.contains_stationary_unit([loc[0]+1, loc[1]-1]) == "TURRET":
                 return True
             return False
-            
+
         # add initial structures, respawn if structure was destroyed
         while (game_state.get_resource(0) >= 5) and essential_structures:
             struc_type, loc = essential_structures.pop(0)
@@ -161,20 +171,27 @@ class AlgoStrategy(gamelib.AlgoCore):
             if game_state.can_spawn(struc_type, loc):
                 game_state.attempt_spawn(struc_type, loc)
                 # add to upgrade queue
-                # if self.GAME_ROUND > 1:
                 if(near_turret):
-                    self.upgrade_priority = [(struc_type, loc)] + self.upgrade_priority
-                        # nonessentials = [(TURRET, (loc[0]+1, loc[1]))] + nonessentials
+                    self.upgrade_priority.append((struc_type, loc))
             elif curr_structure:
                 if curr_structure.health < curr_structure.max_health/2:
                     if struc_type == TURRET:
+                        gamelib.debug_write("ADDING TURRET")
                         if loc[0] < 13:
-                            self.nonessential_structures.append((TURRET, (loc[0]+1, loc[1])))
+                            self.nonessential_structures = [
+                                (TURRET, (loc[0]+1, loc[1]))] + self.nonessential_structures
                         else:
-                            self.nonessential_structures.append((TURRET, (loc[0]-1, loc[1])))
-                            
-        # upgrade 
-        while (game_state.get_resource(0) >= 7) and self.upgrade_priority:
+                            self.nonessential_structures = [
+                                (TURRET, (loc[0]-1, loc[1]))] + self.nonessential_structures
+                    if struc_type == WALL:
+                        game_state.game_map.remove_unit(loc)
+                        if game_state.can_spawn(struc_type, loc):
+                            game_state.attempt_spawn(struc_type, loc)
+                        self.upgrade_priority = [
+                            (struc_type, loc)] + self.upgrade_priority
+
+        # upgrade
+        while (game_state.get_resource(0) >= 5) and self.upgrade_priority:
             struc_type, loc = self.upgrade_priority.pop(0)
             game_state.attempt_upgrade(loc)
 
@@ -186,13 +203,25 @@ class AlgoStrategy(gamelib.AlgoCore):
             if game_state.can_spawn(struc_type, loc):
                 game_state.attempt_spawn(struc_type, loc)
             if(struc_type == TURRET):
-                self.upgrade_priority = [(struc_type, loc)] + self.upgrade_priority
+                self.upgrade_priority = [
+                    (struc_type, loc)] + self.upgrade_priority
 
         self.GAME_ROUND += 1
-        
+
         # Attack stage
         self.attack_edge(game_state)
 
+    def remove_structures(self, game_state: GameState):
+        removable_locs = [
+            [7, 11],
+            [7, 12],
+            [20, 12],
+            [20, 11]
+        ]
+        next_round_MP = game_state.get_resource(1) * 0.75 + 5 + self.turn // 10
+        if next_round_MP >= self.calculate_attack_resource_limit():
+            for loc in removable_locs:
+                game_state.game_map.remove_unit(loc)
 
     def calc_left_resistance(self, game_state: GameState):
         left_edges = [
